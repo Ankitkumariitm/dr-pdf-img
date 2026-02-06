@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pdf to image and image to pdf Converter result reader tools dr pdf and image</title>
+    <link rel="icon" type="image/png" href="../logo.png">
+    <meta property="og:description" content="free tool for pdf & image all tool are avalible here free">
+     <meta name="description" content="DR.pdf & image is a compleate package of your need at one place free tool for pdf & image all tool are avalible here free,pdf resize, merge pdf ,split pdf,pdf to image,image to pdf,orgnize pdf,sign on pdf, watermaark on pdf,image background remover,image compressor,image resizer,age calculator,word to pdf, excel to pdf,resumr builder,multiple image in one page,edit pdf,many more pdf tools at one place">
+
+
+<meta name="keywords" content="Dr.PDF & IMG,drpdf&img,dr pdf and image,DR pdf,dr pdf, merg pdf, split pdf, pdf to image ,image to pdf,photo background remover,orgnize pdf,sign on pdf,photo date and name,page number on pdf,watermark on pdf,DR.pdf and image,pdf editoe,resume builder,multiple image,image resizer,age-calculator,image compressor,word to pdf,excel to pdf,pdf multifunction tool">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --p: #6366f1; --s: #10b981; --bg: #f8fafc; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; color: #1e293b; }
+        .card { background: white; width: 100%; max-width: 900px; padding: 2rem; border-radius: 1.5rem; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; background: #f1f5f9; padding: 6px; border-radius: 12px; }
+        .tab { flex: 1; text-align: center; padding: 12px; cursor: pointer; border-radius: 10px; font-weight: bold; transition: 0.3s; color: #64748b; }
+        .tab.active { background: var(--p); color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
+        .drop-zone { border: 2px dashed #cbd5e1; padding: 40px; text-align: center; border-radius: 15px; cursor: pointer; margin-bottom: 20px; background: #fff; }
+        .range-box { background: #f1f5f9; padding: 20px; border-radius: 12px; margin-bottom: 20px; display: none; text-align: center; border: 1px solid #e2e8f0; }
+        .range-box input { width: 70px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; text-align: center; font-weight: bold; }
+        .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; margin-top: 20px; }
+        .pdf-page-card { border: 1px solid #e2e8f0; padding: 12px; border-radius: 12px; text-align: center; background: white; }
+        .pdf-page-card canvas { width: 100%; border-radius: 8px; margin-bottom: 10px; }
+        .btn { background: var(--p); color: white; border: none; padding: 12px 20px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600; transition: 0.2s; }
+        .btn-green { background: var(--s); }
+        #loading { display: none; text-align: center; color: var(--p); font-weight: 800; padding: 15px; }
+        footer { text-align: center; margin-top: 30px; color: #94a3b8; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2 style="text-align:center; color: var(--p); margin-top: 0;">DR.PDF & IMG Tool</h2>
+    
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('img2pdf', this)">Images to PDF</div>
+        <div class="tab" onclick="switchTab('pdf2img', this)">PDF to Images</div>
+    </div>
+
+    <div id="imgSection">
+        <div class="drop-zone" onclick="document.getElementById('imgInput').click()">
+            <p>📁 Select Images (Reorder by Dragging)</p>
+            <input type="file" id="imgInput" accept="image/*" multiple hidden>
+        </div>
+        <div id="imgPreviewGrid" class="preview-grid"></div>
+        <button id="downloadPdfBtn" class="btn" style="display:none; width: 100%; margin-top: 20px;">Download PDF (DR.PDF & IMG)</button>
+    </div>
+
+    <div id="pdfSection" style="display:none">
+        <div class="drop-zone" onclick="document.getElementById('pdfInput').click()">
+            <p>📄 Select PDF to Extract Images</p>
+            <input type="file" id="pdfInput" accept="application/pdf" hidden>
+        </div>
+
+        <div class="range-box" id="rangeControls">
+            <span style="font-weight: 600;">Download Range: </span>
+            From <input type="number" id="startRange" min="1" value="1">
+            To <input type="number" id="endRange" min="1" value="1">
+            <button class="btn btn-green" onclick="downloadImageRange()" style="margin-left: 10px;">Download Selected Images</button>
+        </div>
+
+        <div id="loading">🚀 Processing High Quality Images...</div>
+        <div id="pdfPreviewGrid" class="preview-grid"></div>
+    </div>
+
+    <footer>© 2026 DR.PDF & IMG | Powered by Ankit Kumar</footer>
+</div>
+
+<script>
+    const { jsPDF } = window.jspdf;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    let currentPdfDoc = null;
+    const imgGrid = document.getElementById('imgPreviewGrid');
+    new Sortable(imgGrid, { animation: 150 });
+
+    function switchTab(mode, el) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('imgSection').style.display = mode === 'img2pdf' ? 'block' : 'none';
+        document.getElementById('pdfSection').style.display = mode === 'pdf2img' ? 'block' : 'none';
+    }
+
+    // --- IMAGES TO PDF ---
+    document.getElementById('imgInput').onchange = (e) => {
+        const files = Array.from(e.target.files);
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const div = document.createElement('div');
+                div.className = 'preview-item';
+                div.style = "position:relative; border:1px solid #ddd; border-radius:12px; overflow:hidden;";
+                div.innerHTML = `<img src="${event.target.result}" style="width:100%; height:150px; object-fit:contain; background:#f8fafc;"><button onclick="this.parentElement.remove()" style="position:absolute; top:5px; right:5px; background:red; color:white; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer;">✕</button>`;
+                imgGrid.appendChild(div);
+            };
+            reader.readAsDataURL(file);
+        });
+        document.getElementById('downloadPdfBtn').style.display = 'block';
+    };
+
+    document.getElementById('downloadPdfBtn').onclick = async () => {
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const images = imgGrid.querySelectorAll('img');
+        const pW = pdf.internal.pageSize.getWidth();
+        const pH = pdf.internal.pageSize.getHeight();
+        for (let i = 0; i < images.length; i++) {
+            if (i > 0) pdf.addPage();
+            const props = pdf.getImageProperties(images[i].src);
+            const ratio = Math.min(pW / props.width, pH / props.height);
+            const w = props.width * ratio;
+            const h = props.height * ratio;
+            pdf.addImage(images[i].src, 'JPEG', (pW-w)/2, (pH-h)/2, w, h);
+        }
+        pdf.save("DR.PDF_IMG_converted.pdf");
+    };
+
+    // --- PDF TO IMAGES ---
+    document.getElementById('pdfInput').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const grid = document.getElementById('pdfPreviewGrid');
+        const loader = document.getElementById('loading');
+        grid.innerHTML = "";
+        loader.style.display = 'block';
+        const arrayBuffer = await file.arrayBuffer();
+        currentPdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;
+        document.getElementById('rangeControls').style.display = 'block';
+        document.getElementById('endRange').value = currentPdfDoc.numPages;
+
+        for (let i = 1; i <= currentPdfDoc.numPages; i++) {
+            const page = await currentPdfDoc.getPage(i);
+            const viewport = page.getViewport({ scale: 1.0 });
+            const canvas = document.createElement('canvas');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            const card = document.createElement('div');
+            card.className = 'pdf-page-card';
+            card.innerHTML = `<p style="font-size:12px;font-weight:bold">PAGE ${i}</p>`;
+            card.appendChild(canvas);
+            const btn = document.createElement('button');
+            btn.className = "btn"; btn.style = "width:100%; padding:8px; font-size:12px; margin-top:5px;";
+            btn.innerText = "DOWNLOAD PAGE";
+            btn.onclick = () => downloadImage(canvas, i);
+            card.appendChild(btn);
+            grid.appendChild(card);
+        }
+        loader.style.display = 'none';
+    };
+
+    function downloadImage(canvas, index) {
+        const link = document.createElement('a');
+        link.download = `DR.PDF_IMG_Page_${index}.png`;
+        link.href = canvas.toDataURL('image/png', 1.0);
+        link.click();
+    }
+
+    // --- ONE CLICK MULTIPLE IMAGES (WITHOUT ZIP) ---
+    async function downloadImageRange() {
+        const start = parseInt(document.getElementById('startRange').value);
+        const end = parseInt(document.getElementById('endRange').value);
+        if (start < 1 || end > currentPdfDoc.numPages || start > end) return alert("Invalid range!");
+
+        document.getElementById('loading').innerText = "Downloading multiple images... Please check your browser's download bar.";
+        document.getElementById('loading').style.display = 'block';
+
+        for (let i = start; i <= end; i++) {
+            const page = await currentPdfDoc.getPage(i);
+            const viewport = page.getPageViewport ? page.getPageViewport({scale: 2.0}) : page.getViewport({scale: 2.0});
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            await page.render({ canvasContext: context, viewport }).promise;
+            
+            // Triggering Individual Download
+            downloadImage(canvas, i);
+            
+            // Small delay to prevent browser crash during multi-download
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        document.getElementById('loading').style.display = 'none';
+    }
+</script>
+</body>
+</html>

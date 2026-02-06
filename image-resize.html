@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DR.PDF & IMG - image  Resizer and compressor with quality control</title>
+    <link rel="icon" type="image/png" href="../logo.png">
+    <meta property="og:description" content="free tool for pdf & image all tool are avalible here free">
+     <meta name="description" content="DR.pdf & image is a compleate package of your need at one place free tool for pdf & image all tool are avalible here free,pdf resize, merge pdf ,split pdf,pdf to image,image to pdf,orgnize pdf,sign on pdf, watermaark on pdf,image background remover,image compressor,image resizer,age calculator,word to pdf, excel to pdf,resumr builder,multiple image in one page,edit pdf,many more pdf tools at one place">
+
+
+<meta name="keywords" content="Dr.PDF & IMG,drpdf&img,dr pdf and image,DR pdf,dr pdf, merg pdf, split pdf, pdf to image ,image to pdf,photo background remover,orgnize pdf,sign on pdf,photo date and name,page number on pdf,watermark on pdf,DR.pdf and image,pdf editoe,resume builder,multiple image,image resizer,age-calculator,image compressor,word to pdf,excel to pdf,pdf multifunction tool">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --p: #6366f1; --bg: #f8fafc; --success: #10b981; }
+        
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; padding: 15px; display: flex; justify-content: center; min-height: 100vh; }
+
+        .container { width: 100%; max-width: 500px; background: white; padding: 1.5rem; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+
+        .header-box { text-align: center; margin-bottom: 20px; }
+        .header-box h2 { color: var(--p); margin: 0; font-size: 1.5rem; }
+        .header-box p { color: #64748b; font-size: 0.85rem; margin: 5px 0; font-weight: 600; }
+
+        .upload-area { 
+            border: 2px dashed #cbd5e1; border-radius: 16px; padding: 25px; 
+            text-align: center; cursor: pointer; transition: 0.3s; background: #fafafa;
+        }
+        .upload-area:hover { border-color: var(--p); background: #f5f7ff; }
+
+        .controls-grid { 
+            display: none; grid-template-columns: 1fr 1fr; gap: 12px; 
+            background: #f1f5f9; padding: 18px; border-radius: 16px; margin-top: 15px;
+        }
+
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; }
+        
+        input[type="number"] { 
+            width: 100%; padding: 10px; border: 1px solid #cbd5e1; 
+            border-radius: 10px; font-size: 1rem; font-weight: 600; outline: none;
+        }
+
+        .quality-box { grid-column: span 2; padding: 12px; background: white; border-radius: 12px; border: 1px solid #e2e8f0; }
+        .slider { width: 100%; accent-color: var(--p); cursor: pointer; }
+        
+        .size-badge { 
+            grid-column: span 2; background: #1e293b; color: white; 
+            padding: 12px; border-radius: 10px; text-align: center; font-weight: 700; 
+        }
+
+        .btn-download { 
+            background: var(--success); color: white; border: none; padding: 15px; 
+            border-radius: 12px; font-weight: 700; width: 100%; margin-top: 15px; 
+            cursor: pointer; font-size: 1rem; display: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+
+        /* Preview Photo Container - No Cancel Sign Here */
+        .preview-container { margin-top: 20px; position: relative; display: none; }
+        .preview-img { width: 100%; border-radius: 12px; border: 1px solid #ddd; object-fit: contain; }
+
+        footer { text-align: center; margin-top: 20px; font-size: 0.8rem; color: #94a3b8; font-weight: 600; }
+        
+        canvas { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-box">
+        <h2>DR.PDF & IMG</h2>
+        <p>Ultra HD Resizer & Compressor</p>
+    </div>
+
+    <div class="upload-area" onclick="document.getElementById('imgInput').click()">
+        <p id="msg" style="margin:0; font-weight:600; color:#475569;">📁 Select Photo to Resize</p>
+        <input type="file" id="imgInput" accept="image/jpeg, image/png" hidden>
+    </div>
+
+    <div class="controls-grid" id="mainControls">
+        <div class="input-group">
+            <label>Width (px)</label>
+            <input type="number" id="wIn" oninput="syncResize('w')">
+        </div>
+        <div class="input-group">
+            <label>Height (px)</label>
+            <input type="number" id="hIn" oninput="syncResize('h')">
+        </div>
+
+        <div class="quality-box">
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                <label>Export Quality</label>
+                <b id="qVal" style="color:var(--p); font-size:0.8rem;">90%</b>
+            </div>
+            <input type="range" id="qSlider" class="slider" min="10" max="100" value="90" oninput="updateAll()">
+        </div>
+
+        <div class="size-badge" id="liveSize">Calculating...</div>
+        
+        <button class="btn-download" id="dlBtn" onclick="downloadImg()">Download HD Photo</button>
+    </div>
+
+    <div class="preview-container" id="viewBox">
+        <img id="view" class="preview-img">
+    </div>
+
+    <footer>© 2026 DR.PDF & IMG | Professional Tool</footer>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let imgObj = null;
+    let ratio = 1;
+
+    document.getElementById('imgInput').onchange = (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (re) => {
+            const img = new Image();
+            img.onload = () => {
+                imgObj = img;
+                ratio = img.width / img.height;
+                
+                // Set initial values
+                document.getElementById('wIn').value = img.width;
+                document.getElementById('hIn').value = img.height;
+                
+                // Show UI
+                document.getElementById('mainControls').style.display = 'grid';
+                document.getElementById('viewBox').style.display = 'block';
+                document.getElementById('dlBtn').style.display = 'block';
+                document.getElementById('msg').innerText = "✓ Photo Loaded Successfully";
+                
+                updateAll();
+            };
+            img.src = re.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    function syncResize(type) {
+        const w = document.getElementById('wIn');
+        const h = document.getElementById('hIn');
+        // Aspect Ratio lock
+        if(type === 'w') h.value = Math.round(w.value / ratio);
+        else w.value = Math.round(h.value * ratio);
+        updateAll();
+    }
+
+    function updateAll() {
+        if(!imgObj) return;
+        
+        const w = parseInt(document.getElementById('wIn').value) || 1;
+        const h = parseInt(document.getElementById('hIn').value) || 1;
+        const q = document.getElementById('qSlider').value;
+        document.getElementById('qVal').innerText = q + "%";
+
+        // Quality Enhancement
+        canvas.width = w;
+        canvas.height = h;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        
+        ctx.drawImage(imgObj, 0, 0, w, h);
+
+        // Render High Quality Preview
+        const dataUrl = canvas.toDataURL('image/jpeg', q / 100);
+        document.getElementById('view').src = dataUrl;
+
+        // Size calculation
+        const stringLength = dataUrl.split(',')[1].length;
+        const sizeInBytes = Math.round(stringLength * (3/4));
+        const kb = (sizeInBytes / 1024).toFixed(2);
+        
+        document.getElementById('liveSize').innerText = kb > 1024 ? 
+            `EST. SIZE: ${(kb/1024).toFixed(2)} MB` : `EST. SIZE: ${kb} KB`;
+    }
+
+    function downloadImg() {
+        const link = document.createElement('a');
+        // Company Branding in filename
+        link.download = `DR.PDF_IMG_${Date.now()}.jpg`;
+        link.href = document.getElementById('view').src;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+
+</body>
+</html>

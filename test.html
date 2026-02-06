@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <title>DR.PDF - Super Stable</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+
+    <style>
+        :root { --accent: #6366f1; --bg: #0f172a; --sidebar: #1e293b; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: var(--bg); color: white; overflow: hidden; }
+        .sidebar { width: 350px; background: var(--sidebar); padding: 20px; border-right: 1px solid #334155; overflow-y: auto; z-index: 10; }
+        .group { background: #111827; padding: 15px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #334155; }
+        .viewer { flex: 1; padding: 40px; overflow: auto; display: flex; justify-content: center; background: #0b0f1a; position: relative; }
+        #pdf-container { position: relative; background: white; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
+        .wm-box { 
+            position: absolute; cursor: move; border: 2px dashed var(--accent); 
+            display: none; align-items: center; justify-content: center; 
+            z-index: 100; touch-action: none; transform-origin: center center;
+            background: rgba(99, 102, 241, 0.1);
+        }
+        #wm-text-box span { font-weight: bold; color: rgba(0,0,0,0.5); pointer-events: none; white-space: nowrap; line-height: 1; }
+        #wm-img-box img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        input, select, button { width: 100%; padding: 10px; margin: 5px 0; border-radius: 6px; box-sizing: border-box; }
+        .btn-blue { background: var(--accent); color: white; border: none; font-weight: bold; cursor: pointer; }
+        .btn-green { background: #10b981; color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 15px; font-size: 16px; }
+        label { font-size: 10px; color: #94a3b8; text-transform: uppercase; margin-top: 8px; display: block; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h2 style="color:var(--accent); margin:0 0 15px 0;">🖋️ DR.PDF Pro</h2>
+    
+    <div class="group">
+        <label>1. Document</label>
+        <input type="file" id="pdf-file" accept=".pdf">
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-top:5px;">
+            <button onclick="changePage(-1)" style="width:40px">←</button>
+            <span id="pg-info">0 / 0</span>
+            <button onclick="changePage(1)" style="width:40px">→</button>
+        </div>
+    </div>
+
+    <div class="group">
+        <label>2. Text Watermark</label>
+        <input type="text" id="wm-text-input" placeholder="Enter text...">
+        <button class="btn-blue" onclick="applyText()">Apply Text</button>
+        <label>Size & Opacity</label>
+        <input type="number" id="txt-size" value="40" title="Font Size">
+        <input type="range" id="txt-op" min="0.1" max="1" step="0.1" value="0.5">
+        <label>Rotation</label>
+        <input type="range" id="txt-rot" min="0" max="360" value="0">
+    </div>
+
+    <div class="group">
+        <label>3. Image Watermark</label>
+        <input type="file" id="wm-img-input" accept="image/*">
+        <button class="btn-blue" style="background:#4b5563" onclick="applyImage()">Apply Image</button>
+        <label>Opacity & Rotation</label>
+        <input type="range" id="img-op" min="0.1" max="1" step="0.1" value="0.5">
+        <input type="range" id="img-rot" min="0" max="360" value="0">
+    </div>
+
+    <div class="group">
+        <label>4. Range Selection</label>
+        <select id="apply-mode" onchange="document.getElementById('range-input').style.display=(this.value==='range'?'block':'none')">
+            <option value="all">All Pages</option>
+            <option value="current">Current Page</option>
+            <option value="range">Specific Range</option>
+        </select>
+        <input type="text" id="range-input" placeholder="e.g. 1-3, 5" style="display:none;">
+    </div>
+
+    <button class="btn-green" id="down-btn" onclick="processPDF()">💾 Download Perfect PDF</button>
+</div>
+
+<div class="viewer">
+    <div id="pdf-container">
+        <canvas id="pdf-canvas"></canvas>
+        <div id="wm-text-box" class="wm-box"><span>TEXT</span></div>
+        <div id="wm-img-box" class="wm-box"></div>
+    </div>
+</div>
+
+<script>
+    const { PDFDocument, rgb, degrees } = PDFLib;
+    let pdfDocRaw = null, pdfJsDoc = null, pageNum = 1;
+    
+    // Global states to track everything
+    let tState = { x: 50, y: 50, rot: 0, size: 40, op: 0.5, active: false };
+    let iState = { x: 150, y: 150, rot: 0, op: 0.5, active: false, bytes: null, type: '' };
+
+    const txtBox = document.getElementById('wm-text-box');
+    const imgBox = document.getElementById('wm-img-box');
+
+    document.getElementById('pdf-file').onchange = async (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        pdfDocRaw = await file.arrayBuffer();
+        pdfJsDoc = await pdfjsLib.getDocument({data: pdfDocRaw.slice(0)}).promise;
+        renderPage(1);
+    };
+
+    async function renderPage(num) {
+        pageNum = num;
+        const page = await pdfJsDoc.getPage(num);
+        const viewport = page.getViewport({scale: 1.0});
+        const canvas = document.getElementById('pdf-canvas');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        document.getElementById('pdf-container').style.width = viewport.width + 'px';
+        document.getElementById('pdf-container').style.height = viewport.height + 'px';
+        document.getElementById('pg-info').innerText = `${num} / ${pdfJsDoc.numPages}`;
+        await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+    }
+
+    function changePage(d) { if(pdfJsDoc && pageNum+d > 0 && pageNum+d <= pdfJsDoc.numPages) renderPage(pageNum+d); }
+
+    function applyText() {
+        tState.active = true;
+        txtBox.style.display = 'flex';
+        txtBox.querySelector('span').innerText = document.getElementById('wm-text-input').value || 'WATERMARK';
+        updateUI();
+    }
+
+    async function applyImage() {
+        const file = document.getElementById('wm-img-input').files[0];
+        if(!file) return;
+        iState.active = true;
+        iState.type = file.type;
+        iState.bytes = await file.arrayBuffer();
+        imgBox.innerHTML = `<img src="${URL.createObjectURL(file)}">`;
+        imgBox.style.display = 'flex';
+        imgBox.style.width = '150px'; imgBox.style.height = '150px';
+        updateUI();
+    }
+
+    // Sync UI with State
+    function updateUI() {
+        tState.size = parseInt(document.getElementById('txt-size').value);
+        tState.op = parseFloat(document.getElementById('txt-op').value);
+        tState.rot = parseInt(document.getElementById('txt-rot').value);
+        
+        txtBox.querySelector('span').style.fontSize = tState.size + 'px';
+        txtBox.style.opacity = tState.op;
+        txtBox.style.transform = `translate(${tState.x}px, ${tState.y}px) rotate(${tState.rot}deg)`;
+
+        iState.op = parseFloat(document.getElementById('img-op').value);
+        iState.rot = parseInt(document.getElementById('img-rot').value);
+        imgBox.style.opacity = iState.op;
+        imgBox.style.transform = `translate(${iState.x}px, ${iState.y}px) rotate(${iState.rot}deg)`;
+    }
+
+    // Listen for slider changes
+    ['txt-size', 'txt-op', 'txt-rot', 'img-op', 'img-rot'].forEach(id => {
+        document.getElementById(id).oninput = updateUI;
+    });
+
+    function setupDrag(el, state) {
+        interact(el).draggable({ listeners: { move(e) { state.x += e.dx; state.y += e.dy; updateUI(); } } })
+        .resizable({ edges: { left: true, right: true, bottom: true, top: true },
+            listeners: { move(e) {
+                Object.assign(e.target.style, { width: `${e.rect.width}px`, height: `${e.rect.height}px` });
+                state.x += e.deltaRect.left; state.y += e.deltaRect.top; updateUI();
+            } }
+        });
+    }
+    setupDrag('#wm-text-box', tState);
+    setupDrag('#wm-img-box', iState);
+
+    // PDF Processing
+    async function processPDF() {
+        if(!pdfDocRaw) return alert("PDF upload karein!");
+        const btn = document.getElementById('down-btn');
+        btn.innerText = "Processing..."; btn.disabled = true;
+
+        try {
+            const pdfDoc = await PDFDocument.load(pdfDocRaw.slice(0));
+            const pages = pdfDoc.getPages();
+            
+            let embedImg = null;
+            if(iState.active && iState.bytes) {
+                embedImg = iState.type.includes('png') ? await pdfDoc.embedPng(iState.bytes) : await pdfDoc.embedJpg(iState.bytes);
+            }
+
+            const mode = document.getElementById('apply-mode').value;
+            const targetIndices = getTargetPages(mode, document.getElementById('range-input').value, pages.length);
+
+            for (const idx of targetIndices) {
+                const page = pages[idx];
+                const { width, height } = page.getSize();
+
+                if(tState.active) {
+                    page.drawText(txtBox.innerText, {
+                        x: tState.x,
+                        y: height - tState.y - (tState.size * 0.8), // Coordinate Fix
+                        size: tState.size,
+                        opacity: tState.op,
+                        rotate: degrees(-tState.rot),
+                        color: rgb(0.5, 0.5, 0.5)
+                    });
+                }
+
+                if(iState.active && embedImg) {
+                    page.drawImage(embedImg, {
+                        x: iState.x,
+                        y: height - iState.y - imgBox.offsetHeight,
+                        width: imgBox.offsetWidth,
+                        height: imgBox.offsetHeight,
+                        opacity: iState.op,
+                        rotate: degrees(-iState.rot)
+                    });
+                }
+            }
+
+            const bytes = await pdfDoc.save();
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = "dr_pdf_perfect.pdf";
+            link.click();
+        } catch (e) { alert("Error: " + e.message); }
+        btn.innerText = "💾 Download Perfect PDF"; btn.disabled = false;
+    }
+
+    function getTargetPages(mode, range, total) {
+        if(mode === 'all') return Array.from({length: total}, (_, i) => i);
+        if(mode === 'current') return [pageNum - 1];
+        const res = [];
+        range.split(',').forEach(p => {
+            if(p.includes('-')) {
+                const [s, e] = p.split('-').map(n => parseInt(n.trim()));
+                for(let i=s; i<=e; i++) if(i>=1 && i<=total) res.push(i-1);
+            } else {
+                const n = parseInt(p.trim());
+                if(n>=1 && n<=total) res.push(n-1);
+            }
+        });
+        return [...new Set(res)];
+    }
+</script>
+</body>
+</html>
